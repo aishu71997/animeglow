@@ -112,8 +112,9 @@ interface AppContextType {
   useLuckySpin: (prize: string, pointsAwarded: number) => void;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
-  selectedCategory: 'all' | 'skincare' | 'merchandise';
-  setSelectedCategory: (cat: 'all' | 'skincare' | 'merchandise') => void;
+  selectedCategory: 'all' | 'skincare' | 'merchandise' | 'stationery';
+  setSelectedCategory: (cat: 'all' | 'skincare' | 'merchandise' | 'stationery') => void;
+  formatPrice: (usdAmount: number, targetCurrency?: string) => string;
 
   // PREMIUM AUTHENTICATION & SECURITY EXTENSIONS
   voiceStyle: 'cute_heroine' | 'elegant_heroine' | 'confident_hero' | 'calm_hero' | 'random';
@@ -172,7 +173,7 @@ const DEFAULT_USER: UserProfile = {
   gender: "Female",
   phoneNumber: "+1 (555) 019-2834",
   preferredLanguage: "en",
-  preferredCurrency: "USD",
+  preferredCurrency: "INR",
   emailVerified: true,
   twoFactorEnabled: false,
   createdDate: "2026-06-01",
@@ -319,7 +320,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const [lastOrderSuccess, setLastOrderSuccess] = useState<Order | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<'all' | 'skincare' | 'merchandise'>('all');
+  const [selectedCategory, setSelectedCategory] = useState<'all' | 'skincare' | 'merchandise' | 'stationery'>('all');
 
   // Sync state to local storage
   useEffect(() => {
@@ -514,7 +515,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       gender,
       phoneNumber: "",
       preferredLanguage: "en",
-      preferredCurrency: "USD",
+      preferredCurrency: "INR",
       emailVerified: false,
       twoFactorEnabled: false,
       createdDate: new Date().toISOString().split('T')[0],
@@ -846,6 +847,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const formatPrice = (usdAmount: number, targetCurrency?: string): string => {
+    const currency = targetCurrency || user?.preferredCurrency || 'INR';
+    if (currency === 'INR') {
+      return `₹${Math.round(usdAmount * 83)}`;
+    }
+    if (currency === 'JPY') {
+      return `¥${Math.round(usdAmount * 150)}`;
+    }
+    if (currency === 'EUR') {
+      return `€${(usdAmount * 0.92).toFixed(2)}`;
+    }
+    if (currency === 'GBP') {
+      return `£${(usdAmount * 0.79).toFixed(2)}`;
+    }
+    return `$${usdAmount.toFixed(2)}`;
+  };
+
   return (
     <AppContext.Provider value={{
       currentPage,
@@ -883,6 +901,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setSearchQuery,
       selectedCategory,
       setSelectedCategory,
+      formatPrice,
 
       // ADVANCED AUTHENTICATION & SECURITY VALUES
       voiceStyle,

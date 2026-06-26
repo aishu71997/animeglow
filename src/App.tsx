@@ -100,6 +100,8 @@ function AppContent() {
   const [forgotNewPassword, setForgotNewPassword] = useState('');
   const [forgotStep, setForgotStep] = useState<'none' | 'email' | 'reset'>('none');
   const [rememberMe, setRememberMe] = useState(true);
+  const [redirectAfterLogin, setRedirectAfterLogin] = useState<string | null>(null);
+  const [showCheckoutAuthModal, setShowCheckoutAuthModal] = useState(false);
 
   const [playedVoiceOrders, setPlayedVoiceOrders] = useState<string[]>(() => {
     const saved = localStorage.getItem('animeglow_played_voices');
@@ -855,6 +857,34 @@ NET TRANSACTION VALUE: $${order.total.toFixed(2)}
                   </button>
                 </div>
 
+                {/* Major Category Faction Selector */}
+                <div className="space-y-2">
+                  <span className="text-[10px] font-mono text-slate-500 uppercase tracking-wider block">Faction Division:</span>
+                  <div className="flex flex-col gap-1.5">
+                    {[
+                      { id: 'all', label: '🌐 ALL DIVISIONS' },
+                      { id: 'skincare', label: '🧪 APOTHECARY (SKINCARE)' },
+                      { id: 'merchandise', label: '🎮 REPOSITORY (ANIME MERCH)' },
+                      { id: 'stationery', label: '🌸 STATIONERY (KAWAII)' },
+                    ].map((cat) => (
+                      <button
+                        key={cat.id}
+                        onClick={() => {
+                          setSelectedCategory(cat.id as any);
+                          setSelectedSubCategory('all');
+                        }}
+                        className={`w-full text-left px-3.5 py-2 rounded-xl text-[10px] font-black border font-mono uppercase tracking-widest transition duration-300 ${
+                          selectedCategory === cat.id
+                            ? 'bg-pink-500 border-pink-500 text-slate-950 shadow-[0_0_12px_rgba(244,63,94,0.4)] font-black'
+                            : 'border-slate-800 bg-slate-900/30 text-slate-300 hover:border-slate-700 hover:bg-slate-900/60'
+                        }`}
+                      >
+                        {cat.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 {/* Subcategory selectors */}
                 <div className="space-y-2">
                   <span className="text-[10px] font-mono text-slate-500 uppercase tracking-wider block">Relic Category:</span>
@@ -1239,6 +1269,24 @@ NET TRANSACTION VALUE: $${order.total.toFixed(2)}
               </p>
             </div>
 
+            {!user && (
+              <div className="mb-8 p-4 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 text-center max-w-xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="text-left font-sans">
+                  <h4 className="text-xs font-bold text-cyan-400 uppercase tracking-wider">💾 Wishlist Synchronization Mode: Offline</h4>
+                  <p className="text-[11px] text-slate-300 mt-0.5 font-mono">Sign in to sync your favorite items across all cognitive terminal links.</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setRedirectAfterLogin('wishlist');
+                    setCurrentPage('login');
+                  }}
+                  className="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-600 text-slate-950 text-xs font-black uppercase tracking-wider transition whitespace-nowrap"
+                >
+                  Sync Wishlist
+                </button>
+              </div>
+            )}
+
             {wishlist.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {PRODUCTS.filter(p => wishlist.includes(p.id)).map((p) => (
@@ -1402,7 +1450,14 @@ NET TRANSACTION VALUE: $${order.total.toFixed(2)}
 
                   {/* Checkout Button */}
                   <button
-                    onClick={() => setCurrentPage('checkout')}
+                    onClick={() => {
+                      if (!user) {
+                        setRedirectAfterLogin('checkout');
+                        setShowCheckoutAuthModal(true);
+                      } else {
+                        setCurrentPage('checkout');
+                      }
+                    }}
                     className="w-full py-4 rounded-2xl bg-pink-500 hover:bg-pink-600 text-slate-950 text-xs font-black tracking-widest uppercase shadow-xl shadow-pink-500/10 transition"
                   >
                     INITIATE CHECKOUT PROTOCOL
@@ -2044,10 +2099,15 @@ NET TRANSACTION VALUE: $${order.total.toFixed(2)}
                     }
                     const res = loginUserSecure(loginEmail, loginPassword);
                     if (res.success) {
-                      setCurrentPage('home');
+                      if (redirectAfterLogin) {
+                        setCurrentPage(redirectAfterLogin);
+                        setRedirectAfterLogin(null);
+                      } else {
+                        setCurrentPage('home');
+                      }
                       setLoginPassword('');
                     } else {
-                      setAuthError(res.message);
+                      setAuthError(res.message || 'Login failed.');
                     }
                   }}
                   className="space-y-4 font-mono text-xs"
@@ -2125,7 +2185,12 @@ NET TRANSACTION VALUE: $${order.total.toFixed(2)}
                         type="button"
                         onClick={() => {
                           socialLogin('Google');
-                          setCurrentPage('home');
+                          if (redirectAfterLogin) {
+                            setCurrentPage(redirectAfterLogin);
+                            setRedirectAfterLogin(null);
+                          } else {
+                            setCurrentPage('home');
+                          }
                         }}
                         className="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-slate-800 bg-slate-900/40 hover:bg-slate-900 text-[11px] font-bold text-slate-300 transition"
                       >
@@ -2138,7 +2203,12 @@ NET TRANSACTION VALUE: $${order.total.toFixed(2)}
                         type="button"
                         onClick={() => {
                           socialLogin('GitHub');
-                          setCurrentPage('home');
+                          if (redirectAfterLogin) {
+                            setCurrentPage(redirectAfterLogin);
+                            setRedirectAfterLogin(null);
+                          } else {
+                            setCurrentPage('home');
+                          }
                         }}
                         className="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-slate-800 bg-slate-900/40 hover:bg-slate-900 text-[11px] font-bold text-slate-300 transition"
                       >
@@ -2322,7 +2392,12 @@ NET TRANSACTION VALUE: $${order.total.toFixed(2)}
                   
                   const res = registerUserSecure(regEmail, regName, regPassword, regUsername, finalGender, regSkin);
                   if (res.success) {
-                    setCurrentPage('home');
+                    if (redirectAfterLogin) {
+                      setCurrentPage(redirectAfterLogin);
+                      setRedirectAfterLogin(null);
+                    } else {
+                      setCurrentPage('home');
+                    }
                     // Reset fields
                     setRegPassword('');
                     setRegUsername('');
@@ -3518,6 +3593,48 @@ NET TRANSACTION VALUE: $${order.total.toFixed(2)}
         </button>
 
       </div>
+
+      {/* Checkout Authentication Modal */}
+      {showCheckoutAuthModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+          <div className="border border-purple-500/30 rounded-3xl bg-[#0c081f]/95 p-6 max-w-sm w-full shadow-[0_20px_50px_rgba(236,72,153,0.3)] text-center relative font-sans">
+            <button 
+              onClick={() => setShowCheckoutAuthModal(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white transition"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <div className="h-12 w-12 rounded-full bg-pink-500/10 border border-pink-500/30 flex items-center justify-center text-pink-400 mx-auto mb-4">
+              <User className="h-6 w-6" />
+            </div>
+            <h3 className="text-lg font-black text-white uppercase tracking-wider">Checkout Authentication</h3>
+            <p className="text-xs text-slate-300 mt-2 font-mono leading-relaxed">
+              Please sign in or create an account to authorize secure checkout.
+            </p>
+            <div className="space-y-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowCheckoutAuthModal(false);
+                  setForgotStep('none');
+                  setCurrentPage('login');
+                }}
+                className="w-full py-3 rounded-xl bg-pink-500 hover:bg-pink-600 text-slate-950 font-black tracking-wider uppercase text-xs transition cursor-pointer"
+              >
+                Sign In
+              </button>
+              <button
+                onClick={() => {
+                  setShowCheckoutAuthModal(false);
+                  setCurrentPage('register');
+                }}
+                className="w-full py-3 rounded-xl border border-slate-800 bg-slate-900/40 hover:bg-slate-900 text-slate-300 font-bold uppercase text-xs transition cursor-pointer"
+              >
+                Create Account
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Footer />
 

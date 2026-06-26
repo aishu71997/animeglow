@@ -1,32 +1,7 @@
-export interface Review {
-  id: string;
-  user: string;
-  avatar: string;
-  rating: number;
-  date: string;
-  comment: string;
-}
+import { Product, Review } from './types';
+import { STATIONERY_PRODUCTS } from './stationery';
 
-export interface Product {
-  id: string;
-  name: string;
-  category: 'skincare' | 'merchandise';
-  subCategory: string;
-  description: string;
-  ingredients?: string[];
-  variants: string[];
-  stock: number;
-  rating: number;
-  reviewsCount: number;
-  price: number;
-  discount: number; // percentage
-  images: string[];
-  threedType: 'bottle' | 'cream_jar' | 'capsule' | 'crystal' | 'figurine' | 'sword' | 'lamp' | 'pendant' | 'scroll' | 'hoodie' | 'mug';
-  reviews: Review[];
-  isBestSeller?: boolean;
-  isNewArrival?: boolean;
-  isFlashSale?: boolean;
-}
+export type { Product, Review };
 
 export const PRODUCTS: Product[] = [
   // --- SKINCARE CATEGORY (25 Products) ---
@@ -895,3 +870,6 @@ export const PRODUCTS: Product[] = [
     reviews: []
   }
 ];
+
+PRODUCTS.push(...STATIONERY_PRODUCTS);
+

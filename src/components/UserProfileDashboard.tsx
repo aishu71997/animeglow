@@ -813,6 +813,7 @@ export default function UserProfileDashboard() {
                         onChange={(e) => setEditCurrency(e.target.value)}
                         className="w-full bg-slate-900/60 border border-white/5 text-xs text-slate-200 rounded-xl p-3 outline-none"
                       >
+                        <option value="INR">INR (₹) Rupee</option>
                         <option value="USD">USD ($) Dollar</option>
                         <option value="JPY">JPY (¥) Yen</option>
                         <option value="EUR">EUR (€) Euro</option>

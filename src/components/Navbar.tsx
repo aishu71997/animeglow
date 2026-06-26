@@ -1,19 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
-import { Search, Heart, ShoppingBag, User, Bell, Menu, X, Sparkles, Flame, Eye } from 'lucide-react';
+import { Search, Heart, ShoppingBag, User, Bell, Menu, X, Sparkles, Flame, Eye, Trash2, Clock, TrendingUp, Check, Star, ShoppingCart } from 'lucide-react';
+import { PRODUCTS, Product } from '../data/products';
 
 export default function Navbar() {
   const {
     currentPage,
     setCurrentPage,
     cart,
+    addToCart,
     wishlist,
     user,
     points,
     searchQuery,
     setSearchQuery,
     setSelectedCategory,
-    selectedCategory
+    selectedCategory,
+    setSelectedProductId
   } = useApp();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -28,12 +31,134 @@ export default function Navbar() {
     { id: 3, text: "📦 Your order #AG-9081 has been delivered!", unread: false }
   ];
 
+  const searchRef = useRef<HTMLDivElement>(null);
+  const [recentSearches, setRecentSearches] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('glow_recent_searches');
+      return saved ? JSON.parse(saved) : ["Sakura Toner", "Hoodie", "Cica", "Oni Desk Lamp"];
+    } catch {
+      return ["Sakura Toner", "Hoodie", "Cica", "Oni Desk Lamp"];
+    }
+  });
+  
+  const [addedMap, setAddedMap] = useState<Record<string, boolean>>({});
+
+  const TRENDING_SEARCHES = ["Sakura Dew", "Neon Oni Lamp", "Acne Patches", "Plush Kitsune", "Mochi Cream"];
+
+  const addRecentSearch = (query: string) => {
+    const trimmed = query.trim();
+    if (!trimmed) return;
+    setRecentSearches(prev => {
+      const next = [trimmed, ...prev.filter(q => q !== trimmed)].slice(0, 5);
+      localStorage.setItem('glow_recent_searches', JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const clearRecentSearches = () => {
+    setRecentSearches([]);
+    localStorage.setItem('glow_recent_searches', JSON.stringify([]));
+  };
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setShowSearchBox(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (searchQuery.trim()) {
+      addRecentSearch(searchQuery);
+    }
     setSelectedCategory('all');
     setCurrentPage('shop');
     setShowSearchBox(false);
   };
+
+  // Fuzzy search implementation matching Name, Anime Series, Character, Category, SubCategory, Description, Ingredients, SKU
+  const getFuzzyMatches = (query: string): Product[] => {
+    if (!query) return [];
+    const cleanQuery = query.toLowerCase().trim();
+    if (!cleanQuery) return [];
+
+    const scoredProducts = PRODUCTS.map(product => {
+      let score = 0;
+      
+      const id = (product.id || '').toLowerCase();
+      const name = (product.name || '').toLowerCase();
+      const description = (product.description || '').toLowerCase();
+      const subCategory = (product.subCategory || '').toLowerCase();
+      const category = (product.category || '').toLowerCase();
+      const ingredients = (product.ingredients || []).map(i => i.toLowerCase()).join(' ');
+
+      // 1. Direct SKU (id) match
+      if (id === cleanQuery) score += 200;
+      else if (id.includes(cleanQuery)) score += 100;
+
+      // 2. Name matches
+      if (name === cleanQuery) score += 150;
+      else if (name.startsWith(cleanQuery)) score += 100;
+      else if (name.includes(cleanQuery)) score += 60;
+
+      // 3. SubCategory/Category matches
+      if (subCategory.includes(cleanQuery)) score += 40;
+      if (category.includes(cleanQuery)) score += 25;
+
+      // 4. Description match (handles character names and anime references)
+      if (description.includes(cleanQuery)) score += 30;
+
+      // 5. Ingredients matches
+      if (ingredients.includes(cleanQuery)) score += 20;
+
+      // 6. Split query terms matching (fuzzy spelling helper)
+      const queryWords = cleanQuery.split(/\s+/).filter(w => w.length > 1);
+      queryWords.forEach(word => {
+        if (name.includes(word)) score += 25;
+        if (description.includes(word)) score += 10;
+        // Simple letter-containment ratio (jaccard-like overlap for small typos)
+        if (word.length >= 4) {
+          let matchesCount = 0;
+          for (let i = 0; i < word.length; i++) {
+            if (name.includes(word[i])) matchesCount++;
+          }
+          if (matchesCount / word.length > 0.8) {
+            score += 15; // Typo correction score bonus
+          }
+        }
+      });
+
+      return { product, score };
+    });
+
+    return scoredProducts
+      .filter(item => item.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map(item => item.product);
+  };
+
+  const highlightText = (text: string, highlight: string) => {
+    if (!highlight.trim()) return <span>{text}</span>;
+    const regex = new RegExp(`(${highlight.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')})`, 'gi');
+    const parts = text.split(regex);
+    return (
+      <span>
+        {parts.map((part, i) => 
+          regex.test(part) 
+            ? <span key={i} className="text-pink-400 font-extrabold underline decoration-pink-500/40 bg-pink-500/10 px-0.5 rounded">{part}</span> 
+            : <span key={i}>{part}</span>
+        )}
+      </span>
+    );
+  };
+
+  const suggestions = getFuzzyMatches(searchQuery);
 
   const navItems = [
     { id: 'home', label: 'HOME' },
@@ -103,24 +228,216 @@ export default function Navbar() {
         <div className="flex items-center gap-3 sm:gap-4" id="nav-action-icons">
           
           {/* Quick Search */}
-          <div className="relative">
+          <div className="relative" ref={searchRef}>
             {showSearchBox ? (
-              <form onSubmit={handleSearchSubmit} className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center bg-slate-900 border border-pink-500/40 rounded-full py-1 px-3 w-48 sm:w-64 animate-slide-in">
-                <input
-                  type="text"
-                  placeholder="Search products..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-transparent text-xs text-slate-100 placeholder-slate-400 outline-none"
-                  autoFocus
-                />
-                <button type="submit" className="text-pink-400 hover:text-pink-300">
-                  <Search className="h-4 w-4" />
-                </button>
-                <button type="button" onClick={() => setShowSearchBox(false)} className="text-slate-400 ml-1">
-                  <X className="h-3 w-3" />
-                </button>
-              </form>
+              <div className="absolute right-0 top-1/2 -translate-y-1/2 z-50">
+                <form onSubmit={handleSearchSubmit} className="flex items-center bg-slate-900 border border-pink-500/60 rounded-full py-1.5 px-3.5 w-48 sm:w-72 shadow-[0_0_20px_rgba(236,72,153,0.2)]">
+                  <input
+                    type="text"
+                    placeholder="Search name, anime, character..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full bg-transparent text-xs text-slate-100 placeholder-slate-400 outline-none pr-1"
+                    autoFocus
+                  />
+                  <button type="submit" className="text-pink-400 hover:text-pink-300 mr-1.5 transition">
+                    <Search className="h-4 w-4" />
+                  </button>
+                  <button type="button" onClick={() => { setShowSearchBox(false); setSearchQuery(''); }} className="text-slate-400 hover:text-slate-200 transition">
+                    <X className="h-3 w-3" />
+                  </button>
+                </form>
+
+                {/* ADVANCED SUGGESTIONS DROPDOWN PANEL */}
+                <div className="absolute right-0 top-full mt-3 w-[330px] sm:w-[480px] md:w-[560px] bg-[#0A0718] border border-pink-500/30 rounded-2xl p-4 shadow-[0_20px_50px_rgba(0,0,0,0.9)] backdrop-blur-xl animate-fade-in z-50 overflow-hidden font-sans">
+                  
+                  {/* Top Badges (Recent and Trending) */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-b border-white/5 pb-3.5 mb-3 text-left">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest font-black flex items-center gap-1">
+                          <Clock className="h-3 w-3 text-pink-400" /> Recent Searches
+                        </span>
+                        {recentSearches.length > 0 && (
+                          <button 
+                            type="button" 
+                            onClick={clearRecentSearches} 
+                            className="text-[9px] font-mono text-pink-400 hover:underline hover:text-pink-300"
+                          >
+                            Clear
+                          </button>
+                        )}
+                      </div>
+                      {recentSearches.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          {recentSearches.map((term, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={() => setSearchQuery(term)}
+                              className="text-[10px] font-mono bg-slate-900 hover:bg-pink-500/15 border border-white/5 hover:border-pink-500/30 text-slate-300 px-2.5 py-1 rounded-md transition"
+                            >
+                              {term}
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-[10px] font-mono text-slate-600 block italic">No search history logs found.</span>
+                      )}
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest font-black flex items-center gap-1 mb-2">
+                        <TrendingUp className="h-3 w-3 text-cyan-400" /> Trending Searches
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {TRENDING_SEARCHES.map((term, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => setSearchQuery(term)}
+                            className="text-[10px] font-mono bg-slate-900 hover:bg-cyan-500/15 border border-white/5 hover:border-cyan-500/30 text-slate-300 px-2.5 py-1 rounded-md transition"
+                          >
+                            {term}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Results List Section */}
+                  <div className="text-left">
+                    {searchQuery.trim() ? (
+                      <div>
+                        <div className="flex items-center justify-between mb-2.5">
+                          <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest font-black">
+                            Search Suggestions ({suggestions.length})
+                          </span>
+                          <span className="text-[9px] font-mono text-slate-500">
+                            Instant Real-Time Results
+                          </span>
+                        </div>
+
+                        {suggestions.length > 0 ? (
+                          <div className="max-h-64 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                            {suggestions.slice(0, 5).map((product) => {
+                              const discPrice = product.price * (1 - product.discount / 100);
+                              const isAdded = addedMap[product.id];
+                              
+                              return (
+                                <div 
+                                  key={product.id}
+                                  onClick={() => {
+                                    addRecentSearch(searchQuery);
+                                    setSelectedProductId(product.id);
+                                    setCurrentPage('details');
+                                    setShowSearchBox(false);
+                                  }}
+                                  className="group flex items-center justify-between gap-3 p-2 bg-[#120D2C]/40 hover:bg-[#1A143D]/60 border border-white/5 hover:border-pink-500/30 rounded-xl transition-all duration-200 cursor-pointer"
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <div className="h-11 w-11 rounded-lg overflow-hidden border border-white/10 bg-black flex-shrink-0">
+                                      <img src={product.images[0]} alt={product.name} className="h-full w-full object-cover contrast-110 saturate-110" referrerPolicy="no-referrer" />
+                                    </div>
+                                    <div className="min-w-0">
+                                      <h4 className="text-[11px] font-black text-slate-100 group-hover:text-pink-400 transition truncate uppercase max-w-[150px] sm:max-w-[220px]">
+                                        {highlightText(product.name, searchQuery)}
+                                      </h4>
+                                      <div className="flex items-center gap-2 mt-0.5">
+                                        <span className="text-[9px] font-mono font-bold text-pink-400 uppercase">
+                                          {product.subCategory}
+                                        </span>
+                                        <div className="flex items-center gap-0.5 text-yellow-400">
+                                          <Star className="h-2.5 w-2.5 fill-current" />
+                                          <span className="text-[9px] text-slate-300 font-bold">{product.rating}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-3 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                                    <div className="text-right flex flex-col font-mono">
+                                      {product.discount > 0 ? (
+                                        <>
+                                          <span className="text-[11px] font-bold text-cyan-400">${discPrice.toFixed(2)}</span>
+                                          <span className="text-[8px] text-slate-500 line-through">${product.price.toFixed(2)}</span>
+                                        </>
+                                      ) : (
+                                        <span className="text-[11px] font-bold text-cyan-400">${product.price.toFixed(2)}</span>
+                                      )}
+                                      <span className={`text-[8px] font-bold uppercase mt-0.5 ${product.stock > 0 ? 'text-emerald-400' : 'text-rose-500'}`}>
+                                        {product.stock > 0 ? 'In Stock' : 'Sold Out'}
+                                      </span>
+                                    </div>
+
+                                    <button
+                                      type="button"
+                                      disabled={product.stock <= 0}
+                                      onClick={(e) => {
+                                        addToCart(product, product.variants[0], 1);
+                                        setAddedMap(prev => ({ ...prev, [product.id]: true }));
+                                        setTimeout(() => {
+                                          setAddedMap(prev => ({ ...prev, [product.id]: false }));
+                                        }, 2000);
+                                      }}
+                                      className={`p-2 rounded-lg transition-all duration-200 ${
+                                        isAdded 
+                                          ? 'bg-emerald-500 text-slate-950 scale-105'
+                                          : 'bg-pink-500 text-slate-950 hover:bg-pink-600 disabled:bg-slate-800 disabled:text-slate-500'
+                                      }`}
+                                    >
+                                      {isAdded ? <Check className="h-3 w-3" /> : <ShoppingCart className="h-3 w-3" />}
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="py-6 text-center border border-white/5 bg-[#120D2C]/20 rounded-xl">
+                            <span className="text-2xl block mb-1">🤖</span>
+                            <span className="text-[11px] font-mono text-slate-400 block font-bold uppercase tracking-wider text-center">No matching codes found (T_T)</span>
+                            <span className="text-[10px] font-mono text-slate-500 block mt-1 text-center">Try another keyword or search term.</span>
+                            
+                            {/* RECOMMENDED BEST SELLERS AS ALTERNATIVES */}
+                            <div className="mt-4 border-t border-white/5 pt-3 px-3">
+                              <span className="text-[9px] font-mono text-pink-400 uppercase tracking-widest block mb-2 font-black text-left">Highly Rated Recommendations:</span>
+                              <div className="grid grid-cols-2 gap-2">
+                                {PRODUCTS.filter(p => p.isBestSeller).slice(0, 2).map(p => (
+                                  <div 
+                                    key={p.id}
+                                    onClick={() => {
+                                      setSelectedProductId(p.id);
+                                      setCurrentPage('details');
+                                      setShowSearchBox(false);
+                                    }}
+                                    className="flex items-center gap-2 p-1.5 bg-[#1A143D]/20 hover:bg-[#1A143D]/40 rounded-lg cursor-pointer transition border border-white/5 hover:border-pink-500/20"
+                                  >
+                                    <img src={p.images[0]} alt={p.name} className="h-7 w-7 rounded object-cover" />
+                                    <div className="min-w-0 text-left">
+                                      <p className="text-[9px] font-bold text-slate-200 truncate uppercase">{p.name}</p>
+                                      <p className="text-[8px] font-mono text-cyan-400 font-bold">${p.price.toFixed(2)}</p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="py-6 text-center border border-white/5 bg-[#120D2C]/20 rounded-xl">
+                        <span className="text-xl block mb-1">🔍</span>
+                        <span className="text-[11px] font-mono text-slate-400 block font-black uppercase tracking-widest text-center">Awaiting Command Node</span>
+                        <span className="text-[9px] font-mono text-slate-500 block mt-0.5 text-center">Type to query full Neo-Tokyo catalog archives.</span>
+                      </div>
+                    )}
+                  </div>
+
+                </div>
+
+              </div>
             ) : (
               <button 
                 onClick={() => setShowSearchBox(true)}
