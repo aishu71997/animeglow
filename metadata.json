@@ -1,0 +1,6 @@
+{
+  "name": "AnimeGlow",
+  "description": "An immersive, premium anime-themed e-commerce experience for teen skincare and exclusive anime merchandise, featuring interactive 3D product previews, skincare personality quizzes, and daily spin rewards.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
